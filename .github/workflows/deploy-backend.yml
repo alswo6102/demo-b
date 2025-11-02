@@ -1,0 +1,70 @@
+name: Deploy to EC2 (demo-b backend)
+
+on:
+  push:
+    branches: [ "main" ] # demo-b의 브랜치에 맞게 수정
+    paths:
+      - 'demo-b/**' # demo-b 폴더에 변경이 있을 때만 실행
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+      
+      - name: Sync and Deploy Backend
+        env:
+          REMOTE_HOST: ${{ secrets.EC2_HOST }}
+          REMOTE_USER: ${{ secrets.EC2_USER }}
+          APP: ${{ secrets.APP_NAME_B }} # "demo-b"
+          HOST_PORT: ${{ secrets.HOST_PORT_B }} # 8000
+        
+        run: |
+          # 1. 소스 코드 동기화
+          rsync -az --delete \
+            -e "ssh -o StrictHostKeyChecking=no" ./$APP/ \
+            $REMOTE_USER@$REMOTE_HOST:/srv/demo/projects/$APP/
+
+          # 2. 원격 서버에서 빌드 및 실행
+          ssh -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST "
+            export APP='$APP'
+            export HOST_PORT='$HOST_PORT'
+            
+            bash -s" << 'EOF'
+              set -euxo pipefail
+              
+              WORKDIR="/srv/demo/projects/$APP"
+              # ❗❗❗ [핵심] 프록시가 찾을 컨테이너 이름은 'demo_api'
+              CONTAINER_NAME="demo_api" 
+              
+              echo "---- [back] Deploying $APP to $HOST_PORT:8000 ----"
+              cd "$WORKDIR"
+
+              # 기존 컨테이너 정리
+              if sudo docker ps -a -q --filter "name=$CONTAINER_NAME" | grep -q .; then
+                echo "Removing old container $CONTAINER_NAME..."
+                sudo docker rm -f "$CONTAINER_NAME"
+              fi
+              
+              # 빌드 및 실행
+              echo "Building Docker image $APP:latest..."
+              sudo docker build -t "$APP:latest" .
+              
+              # ❗❗❗ [핵심] demo_net 네트워크 생성 및 연결
+              sudo docker network create demo_net || true
+              
+              echo "Running new container $CONTAINER_NAME..."
+              sudo docker run -d --name "$CONTAINER_NAME" \
+                --network demo_net \
+                -p "$HOST_PORT:8000" \
+                --restart unless-stopped \
+                "$APP:latest"
+              
+              echo "✅ Backend container '$CONTAINER_NAME' is running."
+          EOF
