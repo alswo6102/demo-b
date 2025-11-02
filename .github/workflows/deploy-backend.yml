@@ -3,9 +3,7 @@ name: Deploy to EC2 (demo-b backend)
 on:
   push:
     branches: [ "main" ] # demo-b의 브랜치에 맞게 수정
-    paths:
-      - 'demo-b/**' # demo-b 폴더에 변경이 있을 때만 실행
-
+    
 jobs:
   deploy:
     runs-on: ubuntu-latest
