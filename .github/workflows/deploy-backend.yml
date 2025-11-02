@@ -2,8 +2,8 @@ name: Deploy to EC2 (demo-b backend)
 
 on:
   push:
-    branches: [ "main" ] # demo-b의 브랜치에 맞게 수정
-    
+    branches: [ "main" ]
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -24,9 +24,9 @@ jobs:
           HOST_PORT: ${{ secrets.HOST_PORT_B }} # 8000
         
         run: |
-          # 1. 소스 코드 동기화
+          # 1. 소스 코드 동기화 (리포지토리 루트의 모든 파일을 복사)
           rsync -az --delete \
-            -e "ssh -o StrictHostKeyChecking=no" ./$APP/ \
+            -e "ssh -o StrictHostKeyChecking=no" ./ \
             $REMOTE_USER@$REMOTE_HOST:/srv/demo/projects/$APP/
 
           # 2. 원격 서버에서 빌드 및 실행
@@ -38,23 +38,19 @@ jobs:
               set -euxo pipefail
               
               WORKDIR="/srv/demo/projects/$APP"
-              # ❗❗❗ [핵심] 프록시가 찾을 컨테이너 이름은 'demo_api'
               CONTAINER_NAME="demo_api" 
               
               echo "---- [back] Deploying $APP to $HOST_PORT:8000 ----"
               cd "$WORKDIR"
 
-              # 기존 컨테이너 정리
               if sudo docker ps -a -q --filter "name=$CONTAINER_NAME" | grep -q .; then
                 echo "Removing old container $CONTAINER_NAME..."
                 sudo docker rm -f "$CONTAINER_NAME"
               fi
               
-              # 빌드 및 실행
               echo "Building Docker image $APP:latest..."
               sudo docker build -t "$APP:latest" .
               
-              # ❗❗❗ [핵심] demo_net 네트워크 생성 및 연결
               sudo docker network create demo_net || true
               
               echo "Running new container $CONTAINER_NAME..."
