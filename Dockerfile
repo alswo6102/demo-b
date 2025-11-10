@@ -15,6 +15,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 5. 소스 코드 복사
 COPY . .
 
-# 6. Gunicorn으로 앱 실행 (8000번 포트 사용)
+# 6. Gunicorn으로 앱 실행 (3000번 포트 사용)
 # core.wsgi는 본인의 Django 프로젝트 설정에 맞게 수정하세요.
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "core.wsgi"]
+CMD ["gunicorn", "--bind", "0.0.0.0:3000", "core.wsgi"]
